@@ -127,17 +127,68 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
     };
   }, []);
   
+  // Load JSON data from file
+  const loadJsonData = async () => {
+    if (!app) return false;
+    
+    try {
+      const fileName = 'piano-notes-data.json';
+      const fileExists = app.vault.getAbstractFileByPath(fileName) instanceof TFile;
+      
+      if (fileExists) {
+        const file = app.vault.getAbstractFileByPath(fileName) as TFile;
+        const jsonContent = await app.vault.read(file);
+        const parsedData = JSON.parse(jsonContent);
+        
+        if (parsedData && parsedData.notes && Array.isArray(parsedData.notes)) {
+          setNotes(parsedData.notes);
+          setUploadStatus('Notes loaded from JSON file');
+          console.log('Successfully loaded notes from JSON file');
+          return true;
+        }
+      }
+      console.log('No valid JSON data found, will try to load MIDI file');
+      return false;
+    } catch (error) {
+      console.error('Error loading JSON data:', error);
+      new Notice('Error loading saved notes');
+      return false;
+    }
+  };
+  
   // Parse MIDI file
   useEffect(() => {
     if (!midiFilePath) return;
     
     const parseMidiFile = async () => {
       try {
-        // Use fetch for default MIDI file or files with URLs
-        const response = await fetch(midiFilePath);
-        const arrayBuffer = await response.arrayBuffer();
-        await parseMidiData(arrayBuffer);
-        setCurrentMidiFile('Default MIDI file');
+        // First try to load from JSON file
+        const jsonLoaded = await loadJsonData();
+        
+        // If JSON data not available, parse MIDI file
+        if (!jsonLoaded) {
+          console.log('Attempting to load MIDI file from path:', midiFilePath);
+          
+          // Use fetch for default MIDI file or files with URLs
+          let path = midiFilePath;
+          
+          // Make sure the path is properly formatted for fetch
+          if (!path.startsWith('http') && !path.startsWith('blob:') && !path.startsWith('data:')) {
+            // For local file paths, ensure they're properly formatted
+            // Remove any leading slashes that might cause issues
+            path = path.replace(/^\/+/, '');
+            
+            // If path is a relative path, it might need special handling
+            if (path.includes('..') || !path.includes('://')) {
+              console.log('Using relative path:', path);
+            }
+          }
+          
+          const response = await fetch(path);
+          const arrayBuffer = await response.arrayBuffer();
+          await parseMidiData(arrayBuffer);
+          setCurrentMidiFile('Default MIDI file');
+        }
       } catch (error) {
         console.error('Error parsing MIDI file:', error);
         new Notice('Error loading MIDI file');
@@ -146,6 +197,11 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
     
     parseMidiFile();
   }, [midiFilePath]);
+  
+  // Try to load JSON data on component mount
+  useEffect(() => {
+    loadJsonData();
+  }, []);
   
   // Parse MIDI data from ArrayBuffer
   const parseMidiData = async (arrayBuffer: ArrayBuffer) => {
@@ -503,13 +559,33 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
         setUploadStatus(`Loading MIDI file: ${selectedFile.name}...`);
         setCurrentMidiFile(selectedFile.name);
         
-        // Get the resource path for the MIDI file
-        const resourcePath = app.vault.adapter.getResourcePath(selectedFile.path);
+        // First try to load from JSON file
+        const jsonLoaded = await loadJsonData();
         
-        // Load and parse the MIDI file
-        const response = await fetch(resourcePath);
-        const arrayBuffer = await response.arrayBuffer();
-        await parseMidiData(arrayBuffer);
+        // Only try to load the MIDI file if JSON data is not available
+        if (!jsonLoaded) {
+          // Get the resource path for the MIDI file
+          // Make sure we're using the correct path format for Obsidian's resource system
+          let resourcePath;
+          try {
+            resourcePath = app.vault.adapter.getResourcePath(selectedFile.path);
+          } catch (e) {
+            console.warn('Error getting resource path, trying alternative approach:', e);
+            // If the path is relative to the plugin directory, try to resolve it
+            resourcePath = selectedFile.path;
+            if (!resourcePath.startsWith('http')) {
+              // For local files, ensure we have the correct path format
+              resourcePath = app.vault.adapter.getResourcePath(resourcePath);
+            }
+          }
+          
+          console.log('Attempting to fetch MIDI file from:', resourcePath);
+          
+          // Load and parse the MIDI file
+          const response = await fetch(resourcePath);
+          const arrayBuffer = await response.arrayBuffer();
+          await parseMidiData(arrayBuffer);
+        }
       }
     } catch (error) {
       console.error('Error loading selected MIDI file:', error);
