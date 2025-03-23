@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, CSSProperties } from 'react';
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 import * as THREE from 'three';
