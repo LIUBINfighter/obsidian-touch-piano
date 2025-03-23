@@ -14,9 +14,10 @@ interface Note {
 interface PianoProps {
   midiFilePath?: string;
   app?: App;
+  plugin?: any; // TouchPianoPlugin type
 }
 
-const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
+const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -208,6 +209,36 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
     } catch (error) {
       console.error('Error saving JSON data:', error);
       new Notice('Error saving MIDI data');
+    }
+  };
+  
+  // Save MIDI file info to plugin settings
+  const saveMidiFileInfo = async (fileName: string, filePath: string) => {
+    if (!plugin) return;
+    
+    try {
+      // Check if file already exists in settings
+      const existingIndex = plugin.settings.midiFiles.findIndex(file => file.path === filePath);
+      
+      if (existingIndex >= 0) {
+        // Update existing entry
+        plugin.settings.midiFiles[existingIndex].name = fileName;
+        plugin.settings.midiFiles[existingIndex].date = Date.now();
+      } else {
+        // Add new entry
+        plugin.settings.midiFiles.push({
+          name: fileName,
+          path: filePath,
+          date: Date.now()
+        });
+      }
+      
+      // Save settings
+      await plugin.saveSettings();
+      console.log('MIDI file info saved to settings');
+    } catch (error) {
+      console.error('Error saving MIDI file info:', error);
+      new Notice('Error saving MIDI file info');
     }
   };
   
@@ -435,6 +466,15 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
       // Read file as ArrayBuffer
       const arrayBuffer = await file.arrayBuffer();
       await parseMidiData(arrayBuffer);
+      
+      // Save file info to plugin settings
+      if (app && plugin) {
+        // Create a unique path for the uploaded file
+        const filePath = `uploaded-midi-files/${file.name}`;
+        
+        // Save MIDI file info to plugin settings
+        await saveMidiFileInfo(file.name, filePath);
+      }
     } catch (error) {
       console.error('Error handling file upload:', error);
       setUploadStatus('Error loading MIDI file');
@@ -446,6 +486,35 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
   const openFileDialog = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
+    }
+  };
+  
+  // Handle MIDI file selection from dropdown
+  const handleMidiFileSelection = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedPath = event.target.value;
+    
+    if (!selectedPath || !app || !plugin) return;
+    
+    try {
+      // Find the selected MIDI file info
+      const selectedFile = plugin.settings.midiFiles.find(file => file.path === selectedPath);
+      
+      if (selectedFile) {
+        setUploadStatus(`Loading MIDI file: ${selectedFile.name}...`);
+        setCurrentMidiFile(selectedFile.name);
+        
+        // Get the resource path for the MIDI file
+        const resourcePath = app.vault.adapter.getResourcePath(selectedFile.path);
+        
+        // Load and parse the MIDI file
+        const response = await fetch(resourcePath);
+        const arrayBuffer = await response.arrayBuffer();
+        await parseMidiData(arrayBuffer);
+      }
+    } catch (error) {
+      console.error('Error loading selected MIDI file:', error);
+      setUploadStatus('Error loading selected MIDI file');
+      new Notice('Error loading selected MIDI file');
     }
   };
   
@@ -492,6 +561,26 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
             Upload MIDI File
           </button>
         </div>
+        
+        {/* MIDI File Selection Dropdown */}
+        {plugin && plugin.settings.midiFiles.length > 0 && (
+          <div className="midi-selection">
+            <select 
+              onChange={handleMidiFileSelection}
+              className="midi-dropdown"
+              value={plugin.settings.midiFiles.find(file => file.name === currentMidiFile)?.path || ''}
+            >
+              <option value="" disabled>Select a MIDI file</option>
+              {plugin.settings.midiFiles
+                .sort((a, b) => b.date - a.date) // Sort by date, newest first
+                .map((file, index) => (
+                  <option key={index} value={file.path}>
+                    {file.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
         
         {/* Hidden file input */}
         <input 

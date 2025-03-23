@@ -57,3 +57,20 @@
 	margin: 3px 0;
   }
   
+  /* MIDI File Selection Dropdown Styles */
+  .midi-selection {
+	margin: 10px 0;
+	width: 100%;
+	max-width: 300px;
+	text-align: center;
+  }
+  
+  .midi-dropdown {
+	width: 100%;
+	padding: 6px;
+	border-radius: 4px;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+  }
+  

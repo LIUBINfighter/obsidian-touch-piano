@@ -5,10 +5,22 @@ import { PlayingView } from "./playing-view"; // 新增引入
 
 interface TouchPianoSettings {
 	mySetting: string;
+	midiFiles: MidiFileInfo[];
+}
+
+interface MidiFileInfo {
+	name: string;
+	path: string;
+	date: number; // timestamp for sorting
 }
 
 const DEFAULT_SETTINGS: TouchPianoSettings = {
-	mySetting: 'default'
+	mySetting: 'default',
+	midiFiles: [{
+		name: 'Default MIDI',
+		path: 'obsidian-touch-piano/.obsidian/plugins/obsidian-touch-piano/src/assets/Ah-vous-dirai-je-Maman-via-Twelve-Variations.mid',
+		date: Date.now()
+	}]
 }
 
 export default class TouchPianoPlugin extends Plugin {
@@ -22,7 +34,7 @@ export default class TouchPianoPlugin extends Plugin {
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 		// 注册 PlayingView
-		this.registerView(PlayingView.VIEW_TYPE, leaf => new PlayingView(leaf));
+		this.registerView(PlayingView.VIEW_TYPE, leaf => new PlayingView(leaf, this));
 
 		// 添加侧边栏图标点击激活 PlayingView
 		this.addRibbonIcon('play-circle', 'Open Playing View', (evt: MouseEvent) => {

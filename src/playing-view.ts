@@ -1,16 +1,22 @@
-import { ItemView, WorkspaceLeaf, TFile } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, Plugin } from 'obsidian';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Piano from './piano';
+import TouchPianoPlugin from './main';
 
 // 定义视图类型常量
 export const VIEW_TYPE_PLAYING = "playing-view";
 
 export class PlayingView extends ItemView {
+	constructor(leaf: WorkspaceLeaf, plugin: TouchPianoPlugin) {
+		super(leaf);
+		this.plugin = plugin;
+	}
 	static VIEW_TYPE = VIEW_TYPE_PLAYING;
 	// 保存创建的 React 根对象
 	private root: ReactDOM.Root;
 	private midiFilePath: string | undefined;
+	private plugin: TouchPianoPlugin;
 
 	getViewType(): string {
 		return PlayingView.VIEW_TYPE;
@@ -27,15 +33,15 @@ export class PlayingView extends ItemView {
 		container.addClass('touch-piano-container');
 
 		// 设置默认 MIDI 文件路径
-		this.midiFilePath = this.app.vault.adapter.getResourcePath(
-			'obsidian-touch-piano/.obsidian/plugins/obsidian-touch-piano/src/assets/Ah-vous-dirai-je-Maman-via-Twelve-Variations.mid'
-		);
+		const defaultMidiFile = this.plugin.settings.midiFiles[0];
+		this.midiFilePath = this.app.vault.adapter.getResourcePath(defaultMidiFile.path);
 
 		this.root = ReactDOM.createRoot(container);
 		this.root.render(
 			React.createElement(Piano, { 
 				midiFilePath: this.midiFilePath,
-				app: this.app 
+				app: this.app,
+				plugin: this.plugin
 			})
 		);
 	}
