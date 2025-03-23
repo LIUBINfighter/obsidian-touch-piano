@@ -25,6 +25,9 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
   const synth = useRef<Tone.PolySynth | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Track pressed keys to implement debounce mechanism
+  const pressedKeysRef = useRef<Record<string, boolean>>({});
+  
   const [notes, setNotes] = useState<Note[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
@@ -74,9 +77,31 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
       // Update particles
       particlesRef.current.forEach((particle: any) => {
         if (particle.userData.active) {
-          particle.position.y += 0.02;
-          particle.material.opacity -= 0.005;
+          // Apply custom velocity with random variations
+          particle.position.y += particle.userData.velocityY * (1 + Math.random() * 0.2 - 0.1);
           
+          // Apply horizontal velocity with wobble effect
+          particle.position.x += particle.userData.velocityX;
+          
+          // Add wobble effect (sinusoidal movement)
+          particle.position.x += Math.sin(
+            particle.position.y * particle.userData.wobbleSpeed + 
+            particle.userData.wobbleOffset
+          ) * particle.userData.wobble;
+          
+          // Gradually reduce opacity
+          particle.material.opacity -= 0.004;
+          
+          // Grow particle size up to max size
+          if (particle.scale.x < particle.userData.maxSize) {
+            const newSize = particle.scale.x + particle.userData.growFactor;
+            particle.scale.set(newSize, newSize, newSize);
+          }
+          
+          // Pulse the emissive intensity for glow effect
+          particle.material.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
+          
+          // Remove particle when it fades out
           if (particle.material.opacity <= 0) {
             scene.remove(particle);
             particlesRef.current = particlesRef.current.filter(p => p !== particle);
@@ -193,47 +218,85 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
     // Map MIDI note to x position (piano keyboard layout)
     const x = (note - 60) * 0.2; // Center around middle C (60)
     
-    // Create particle geometry
-    const geometry = new THREE.SphereGeometry(0.1, 32, 32);
+    // Create particle geometry - increased size from 0.1 to 0.25
+    const geometry = new THREE.SphereGeometry(0.25, 32, 32);
     
-    // Create particle material with glow effect
+    // Create particle material with enhanced glow effect
     const material = new THREE.MeshPhongMaterial({
       color: getColorForNote(note),
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.9,
       emissive: getColorForNote(note),
-      emissiveIntensity: 0.5
+      emissiveIntensity: 0.8,
+      shininess: 100
     });
     
     // Create particle mesh
     const particle = new THREE.Mesh(geometry, material);
     particle.position.set(x, -2, 0); // Start at bottom of screen
-    particle.userData = { active: true };
+    particle.userData = { 
+      active: true, 
+      initialSize: 0.25,
+      growFactor: Math.random() * 0.1 + 0.05, // Random growth factor
+      maxSize: Math.random() * 0.2 + 0.4, // Random max size
+      // Add random movement parameters
+      velocityY: Math.random() * 0.02 + 0.01, // Base upward velocity
+      velocityX: (Math.random() - 0.5) * 0.01, // Random horizontal velocity
+      wobble: Math.random() * 0.02, // Random wobble factor
+      wobbleSpeed: Math.random() * 0.1 + 0.05, // Speed of wobble
+      wobbleOffset: Math.random() * Math.PI * 2 // Random starting phase
+    };
     
     // Add to scene and tracking array
     sceneRef.current.add(particle);
     particlesRef.current.push(particle);
   };
   
-  // Get color based on note value
+  // Get color based on note value with enhanced vibrance
   const getColorForNote = (note: number): THREE.Color => {
-    // Map note to hue (0-1)
+    // Map note to hue (0-1) with octave influencing saturation and lightness
     const hue = (note % 12) / 12;
-    return new THREE.Color().setHSL(hue, 0.8, 0.5);
+    const octave = Math.floor(note / 12) - 1; // Standard MIDI octave calculation
+    
+    // Adjust saturation based on octave (higher octaves more saturated)
+    const saturation = Math.min(0.9, 0.7 + (octave * 0.05));
+    
+    // Adjust lightness based on octave (higher octaves brighter)
+    const lightness = Math.min(0.7, 0.4 + (octave * 0.05));
+    
+    return new THREE.Color().setHSL(hue, saturation, lightness);
   };
   
   // Play a note
-  const playNote = (note: number, duration: number = 0.5) => {
+  const playNote = (note: number, duration: number = 0.5, isKeyHeld: boolean = false) => {
     if (!synth.current) return;
     
     const noteName = Tone.Frequency(note, 'midi').toNote();
-    synth.current.triggerAttackRelease(noteName, duration);
-    createParticle(note);
+    
+    if (isKeyHeld) {
+      // For held keys, we don't trigger a new note, just extend the current one
+      // This is handled by not doing anything, as the note is already playing
+      // We also don't create a new particle for held keys
+    } else {
+      // For new key presses, trigger the note and create a particle
+      synth.current.triggerAttackRelease(noteName, duration);
+      createParticle(note);
+    }
   };
   
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      
+      // Prevent repeated triggering if key is already pressed (debounce mechanism)
+      if (pressedKeysRef.current[key]) {
+        return;
+      }
+      
+      // Mark key as pressed
+      pressedKeysRef.current[key] = true;
+      
       // In guide mode, any key press plays the next note in sequence
       if (isGuideMode && notes.length > 0) {
         if (currentNoteIndex < notes.length) {
@@ -263,18 +326,61 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
         // Add more mappings as needed
       };
       
-      const note = keyToNote[event.key.toLowerCase()];
+      const note = keyToNote[key];
       if (note) {
         playNote(note);
       }
     };
     
+    const handleKeyUp = (event: KeyboardEvent) => {
+      // Mark key as released
+      const key = event.key.toLowerCase();
+      pressedKeysRef.current[key] = false;
+    };
+    
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, [isGuideMode, notes, currentNoteIndex]);
+  
+  // Effect to handle sustained notes for held keys
+  useEffect(() => {
+    // Skip if in guide mode or auto-play
+    if (isGuideMode || isAutoPlay) return;
+    
+    const keyToNote: Record<string, number> = {
+      'a': 60, // Middle C
+      's': 62, // D
+      'd': 64, // E
+      'f': 65, // F
+      'g': 67, // G
+      'h': 69, // A
+      'j': 71, // B
+      'k': 72, // C
+      'l': 74, // D
+      ';': 76, // E
+      // Add more mappings as needed
+    };
+    
+    // Check for held keys every 500ms and extend their notes
+    const intervalId = setInterval(() => {
+      Object.entries(pressedKeysRef.current).forEach(([key, isPressed]) => {
+        if (isPressed) {
+          const note = keyToNote[key];
+          if (note) {
+            // Pass true to indicate this is a held key
+            playNote(note, 0.5, true);
+          }
+        }
+      });
+    }, 500);
+    
+    return () => clearInterval(intervalId);
+  }, [isGuideMode, isAutoPlay]);
   
   // Auto-play functionality
   useEffect(() => {
