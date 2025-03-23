@@ -1,0 +1,59 @@
+/* styles.css */
+.piano-container {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	min-height: 350px;
+	height: 100%;
+  }
+  .visualization-container {
+	width: 100%;
+	min-height: 350px;
+	height: 100%;
+	margin-bottom: 10px;
+  }
+  .controls {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 5px;
+  }
+  .button-container {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 8px;
+  }
+  .control-button {
+	margin-right: 6px;
+	padding: 6px 10px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 0.9em;
+  }
+  .control-button:last-child {
+	margin-right: 0;
+  }
+  .upload-button {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+  }
+  .status-message {
+	margin: 5px 0;
+	font-size: 0.9em;
+	text-align: center;
+  }
+  .current-file {
+	margin: 5px 0;
+	font-size: 0.9em;
+	text-align: center;
+	font-style: italic;
+  }
+  .instructions {
+	margin-top: 5px;
+	text-align: center;
+	font-size: 0.9em;
+  }
+  .instructions p {
+	margin: 3px 0;
+  }
+  

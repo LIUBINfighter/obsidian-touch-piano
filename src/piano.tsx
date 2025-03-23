@@ -3,7 +3,6 @@ import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 import * as THREE from 'three';
 import { App, TFile, Notice } from 'obsidian';
-
 interface Note {
   time: number;
   midi: number;
@@ -356,18 +355,16 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
       <div 
         ref={containerRef} 
         className="visualization-container"
-        style={{ width: '100%', height: '400px' }}
       ></div>
       
       <div className="controls">
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+        <div className="button-container">
           <button 
             onClick={() => {
               if (isAutoPlay) setIsAutoPlay(false);
               setIsGuideMode(!isGuideMode);
             }}
             className={`control-button ${isGuideMode ? 'upload-button' : ''}`}
-            style={{ marginRight: '10px' }}
           >
             {isGuideMode ? 'Exit Guide Mode' : 'Enter Guide Mode'}
           </button>
@@ -378,7 +375,6 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app }) => {
               setIsAutoPlay(!isAutoPlay);
             }}
             className="control-button"
-            style={{ marginRight: '10px' }}
           >
             {isAutoPlay ? 'Stop Auto-Play' : 'Start Auto-Play'}
           </button>
