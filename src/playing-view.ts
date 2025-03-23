@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Piano from './piano';
 import TouchPianoPlugin from './main';
+import * as Tone from 'tone';
 
 // 定义视图类型常量
 export const VIEW_TYPE_PLAYING = "playing-view";
@@ -47,6 +48,11 @@ export class PlayingView extends ItemView {
 	}
 
 	async onClose() {
+		// 停止所有音频播放
+		Tone.Transport.stop();
+		Tone.getContext().close();
+		
+		// 卸载React组件
 		if (this.root) {
 			this.root.unmount();
 		}

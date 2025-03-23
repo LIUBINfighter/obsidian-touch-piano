@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, CSSProperties } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
 import { Midi } from '@tonejs/midi';
 import * as THREE from 'three';
@@ -29,6 +29,9 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
   // Track pressed keys to implement debounce mechanism
   const pressedKeysRef = useRef<Record<string, boolean>>({});
   
+  // Reference to store active timeouts for cleanup
+  const activeTimeoutsRef = useRef<number[]>([]);
+  
   const [notes, setNotes] = useState<Note[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
@@ -36,6 +39,50 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
   const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [currentMidiFile, setCurrentMidiFile] = useState<string>('');
+  
+  // Function to stop all playing notes and reset state
+  const stopPlaying = () => {
+    // Stop all playing notes
+    if (synth.current) {
+      synth.current.releaseAll();
+    }
+    
+    // Clear all active timeouts
+    activeTimeoutsRef.current.forEach(timeoutId => {
+      window.clearTimeout(timeoutId);
+    });
+    activeTimeoutsRef.current = [];
+    
+    // Reset states
+    setIsAutoPlay(false);
+    setIsPlaying(false);
+    setCurrentNoteIndex(0);
+    
+    // Clear all particles
+    if (sceneRef.current) {
+      particlesRef.current.forEach(particle => {
+        sceneRef.current?.remove(particle);
+      });
+      particlesRef.current = [];
+    }
+  };
+  
+  // Add visibility change listener to stop playing when tab is inactive
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPlaying();
+      }
+    };
+    
+    // Add event listener
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Cleanup function
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
   
   // Initialize Three.js scene
   useEffect(() => {
@@ -495,7 +542,9 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
       
       // Schedule next note
       if (currentNoteIndex < notes.length) {
-        setTimeout(playNextNote, timeToNextNote * 1000);
+        const timeoutId = setTimeout(playNextNote, timeToNextNote * 1000);
+        // Store timeout ID for cleanup
+        activeTimeoutsRef.current.push(timeoutId);
       } else {
         setIsAutoPlay(false);
       }
@@ -505,7 +554,7 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
     playNextNote();
     
     return () => {
-      setIsAutoPlay(false);
+      stopPlaying();
     };
   }, [isAutoPlay, notes]);
   
@@ -628,6 +677,14 @@ const Piano: React.FC<PianoProps> = ({ midiFilePath, app, plugin }) => {
             className="control-button"
           >
             {isAutoPlay ? 'Stop Auto-Play' : 'Start Auto-Play'}
+          </button>
+          
+          <button 
+            onClick={stopPlaying}
+            className="control-button"
+            style={{ backgroundColor: '#e74c3c' }}
+          >
+            Stop All Sounds
           </button>
           
           <button 
